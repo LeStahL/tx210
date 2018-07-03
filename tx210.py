@@ -76,7 +76,7 @@ for char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789' :
         print "tags",tx
         
         segments = []
-        stack = [  ]
+        stack = []
         for i in range(len(tx)) :
             tag = tx[i]
             #point = [ xa[i], ya[i] ]
@@ -116,21 +116,26 @@ for char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789' :
                 print "spline",p0,p1,p2, "j=", j
                 xp += [ pow(1.-t,2.)*p0[0]+2.*(1.-t)*t*p1[0]+t*t*p2[0] for t in np.arange(0., 1., 1./100.) ]
                 yp += [ pow(1.-t,2.)*p0[1]+2.*(1.-t)*t*p1[1]+t*t*p2[1] for t in np.arange(0., 1., 1./100.) ]
-            else :
+            elif len(segment) > 3:
+                print "dynamic segment of size",len(segment)
                 p = []
-                for k in range(len(segment)) :
+                for k in range(len(segment)-1) :
                     p += [ [xa[j], ya[j]] ]
                     j = (j+1)%len(xa)
-                    
-                xp += [ pow(1.-t,2.)*p[k-1][0]+2.*(1.-t)*t*p[k][0]+t*t*pf[0] for t in np.arange(0., 1., 1./100.) ]
-                yp += [ pow(1.-t,2.)*p[k-1][1]+2.*(1.-t)*t*p[k][1]+t*t*pf[1] for t in np.arange(0., 1., 1./100.) ]
+                p += [ [xa[j], ya[j]] ]
+                
                 pf = []
+                for k in range(1, len(segment)-1) :
+                    pf += [ [ .5*(p[k][0]+p[k+1][0]), .5*(p[k][1]+p[k+1][1]) ] ]
+                print "pf",pf    
+                xp += [ pow(1.-t,2.)*p[0][0]+2.*(1.-t)*t*p[1][0]+t*t*pf[0][0] for t in np.arange(0., 1., 1./100.) ]
+                yp += [ pow(1.-t,2.)*p[0][1]+2.*(1.-t)*t*p[1][1]+t*t*pf[0][1] for t in np.arange(0., 1., 1./100.) ]
+                
                 for k in range(1, len(segment)-2) :
-                    pf = [ .5*(p[k][0]+p[k+1][0]), .5*(p[k][1]+p[k+1][1]) ]
-                    xp += [ pow(1.-t,2.)*p[k-1][0]+2.*(1.-t)*t*p[k][0]+t*t*pf[0] for t in np.arange(0., 1., 1./100.) ]
-                    yp += [ pow(1.-t,2.)*p[k-1][1]+2.*(1.-t)*t*p[k][1]+t*t*pf[1] for t in np.arange(0., 1., 1./100.) ]
-                xp += [ pow(1.-t,2.)*p[k-1][0]+2.*(1.-t)*t*p[k][0]+t*t*pf[0] for t in np.arange(0., 1., 1./100.) ]
-                yp += [ pow(1.-t,2.)*p[k-1][1]+2.*(1.-t)*t*p[k][1]+t*t*pf[1] for t in np.arange(0., 1., 1./100.) ]
+                    xp += [ pow(1.-t,2.)*pf[k-1][0]+2.*(1.-t)*t*p[k+1][0]+t*t*pf[k][0] for t in np.arange(0., 1., 1./100.) ]
+                    yp += [ pow(1.-t,2.)*pf[k-1][1]+2.*(1.-t)*t*p[k+1][1]+t*t*pf[k][1] for t in np.arange(0., 1., 1./100.) ]
+                xp += [ pow(1.-t,2.)*pf[-1][0]+2.*(1.-t)*t*p[-2][0]+t*t*p[-1][0] for t in np.arange(0., 1., 1./100.) ]
+                yp += [ pow(1.-t,2.)*pf[-1][1]+2.*(1.-t)*t*p[-2][1]+t*t*p[-1][1] for t in np.arange(0., 1., 1./100.) ]
                 
             #elif len(segment) == 4 :
                 #p0 = [xa[j], ya[j]]
