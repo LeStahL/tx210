@@ -53,6 +53,9 @@ if args.size != None :
     size = float(args.size)
 
 otext = "float d=1.;\n"
+otext2 = "const vec2 quad["
+quad = []
+lin = []
 for char in text :
     otext += "//"+char+"\n"
     font.load_char(char)
@@ -112,6 +115,7 @@ for char in text :
                 xp += [ (1.-t)*p0[0]+t*p1[0] for t in np.arange(0., 1., 1./100.) ]
                 yp += [ (1.-t)*p0[1]+t*p1[1] for t in np.arange(0., 1., 1./100.) ]
                 otext += "d = min(d, dsg(vec2("+"%.3f" %p0[0]+","+"%.3f" %p0[1]+"), vec2("+"%.3f" %p1[0]+","+"%.3f" %p1[1]+"), uv));\n"
+                lin += [ p0, p1 ]
             elif len(segment) > 2:
                 p = []
                 for k in range(len(segment)-1) :
@@ -126,22 +130,40 @@ for char in text :
                 otext += "d = min(d, dsp(vec2("+"%.3f" %p[0][0]+","+"%.3f" %p[0][1]+"), vec2("+"%.3f" %p[1][0]+","+"%.3f" %p[1][1]+"), vec2("+"%.3f" %pf[0][0]+","+"%.3f" %pf[0][1]+"), uv));\n"
                 xp += [ pow(1.-t,2.)*p[0][0]+2.*(1.-t)*t*p[1][0]+t*t*pf[0][0] for t in np.arange(0., 1., 1./100.) ]
                 yp += [ pow(1.-t,2.)*p[0][1]+2.*(1.-t)*t*p[1][1]+t*t*pf[0][1] for t in np.arange(0., 1., 1./100.) ]
+                quad += [ p[0], p[1], pf[0] ]
                 
                 for k in range(1, len(segment)-2) :
                     xp += [ pow(1.-t,2.)*pf[k-1][0]+2.*(1.-t)*t*p[k+1][0]+t*t*pf[k][0] for t in np.arange(0., 1., 1./100.) ]
                     yp += [ pow(1.-t,2.)*pf[k-1][1]+2.*(1.-t)*t*p[k+1][1]+t*t*pf[k][1] for t in np.arange(0., 1., 1./100.) ]
                     otext += "d = min(d, dsp(vec2("+"%.3f" %pf[k-1][0]+","+"%.3f" %pf[k-1][1]+"), vec2("+"%.3f" %p[k+1][0]+","+"%.3f" %p[k+1][1]+"), vec2("+"%.3f" %pf[k][0]+","+"%.3f" %pf[k][1]+"), uv));\n"
+                    quad += [ pf[k-1], p[k+1], pf[k] ]
                 xp += [ pow(1.-t,2.)*pf[-1][0]+2.*(1.-t)*t*p[-2][0]+t*t*p[-1][0] for t in np.arange(0., 1., 1./100.) ]
                 yp += [ pow(1.-t,2.)*pf[-1][1]+2.*(1.-t)*t*p[-2][1]+t*t*p[-1][1] for t in np.arange(0., 1., 1./100.) ]
                 otext += "d = min(d, dsp(vec2("+"%.3f" %pf[-1][0]+","+"%.3f" %pf[-1][1]+"), vec2("+"%.3f" %p[-2][0]+","+"%.3f" %p[-2][1]+"), vec2("+"%.3f" %p[-1][0]+","+"%.3f" %p[-1][1]+"), uv));\n"
+                quad += [ pf[-1], p[-2], p[-1] ]
         plt.plot(xp, yp, 'o')
     xpos += w
 fig.savefig('text.png', width=2000.)
 
+otext2 += str(len(quad)) + "] = vec2[" + str(len(quad)) + "]("
+for i in range(len(quad)) :
+    if i!=0 :
+        otext2 += ','
+    otext2 += "vec2(%.3f"%quad[i][0] + ",%.3f)" % quad[i][1]
+otext2 += "),\nlin[" + str(len(lin)) + "] = vec2[" + str(len(lin)) + "]("
+for i in range(len(lin)) :
+    if i!=0 :
+        otext2 += ','
+    otext2 += "vec2(%.3f"%lin[i][0] + ",%.3f)" % lin[i][1]
+otext2 += ");\nfloat d = 1.;\nfor(int i=0; i<" + str(len(quad)/3) + "; ++i) d=min(d,dsp(quad[3*i], quad[3*i+1], quad[3*i+2], uv));\nfor(int i=0; i<" + str(len(lin)/2) + "; ++i) d=min(d,dsg(lin[2*i], lin[2*i+1], uv));\n"
+
 if args.outfile == None :
     print otext
+    print otext2
 else :
     with open(args.outfile, "wt") as f:
         f.write(otext)
         f.close()
-    
+    with open(args.outfile + ".arr", "wt") as f:
+        f.write(otext2)
+        f.close()
