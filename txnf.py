@@ -30,6 +30,8 @@ parser = argparse.ArgumentParser(description='Shader Text Generation Tool.')
 parser.add_argument('-s', '--size', dest='size')
 parser.add_argument('-o', '--output', dest='outfile')
 parser.add_argument('-p', '--plot', dest='plot', action='store_true')
+parser.add_argument('-x', '--xoffset', dest='xoffset')
+parser.add_argument('-y', '--yoffset', dest='yoffset')
 args, rest = parser.parse_known_args()
 
 text = rest[0]
@@ -39,11 +41,16 @@ unit = float(args.size)/6.
 lin = []
 quad = []
 xpos = 0.
+ypos = 0.
+if args.xoffset != None :
+    xpos = float(args.xoffset[1:-1])/unit
+if args.yoffset != None :
+    ypos = float(args.yoffset[1:-1])/unit
 def rescale(lin0, quad0) :
-    global lin, quad, xpos, unit
-    lin0 = [ [ (xpos + lini[0]) * unit, lini[1] * unit ] for lini in lin0 ]
+    global lin, quad, xpos, unit, ypos
+    lin0 = [ [ (xpos + lini[0]) * unit, (ypos + lini[1]) * unit ] for lini in lin0 ]
     lin += lin0
-    quad0 = [ [ (xpos + quadi[0]) * unit, quadi[1] * unit ] for quadi in quad0 ]
+    quad0 = [ [ (xpos + quadi[0]) * unit, (ypos + quadi[1]) * unit ] for quadi in quad0 ]
     quad += quad0
     return 
 for c in text :
@@ -357,34 +364,55 @@ for c in text :
         quad0 = [ [0.,3.], [0.,4.], [1.,4.], [1.,4.], [2.,4.], [2.,3.], [2.,3.], [2.,2.], [1.,2.], [1.,2.], [0.,2.], [0.,3.], [2.,1.], [2.,0.], [1.,0.] ]
         rescale(lin0, quad0)
         xpos += 3.
+    elif c == ' ' :
+        lin0 =  []
+        quad0 = []
+        rescale(lin0, quad0)
+        xpos += 2.
 
-    xpos += .25
+    xpos += .05
 
 # plot outlines
-plt.rc('axes', prop_cycle=(cycler.cycler('color', ['r', 'g', 'b', 'c', 'm', 'y', 'k'])))
-fig = plt.figure(figsize=(16,4))
-plt.axes().set_aspect('equal', 'datalim')
-plt.grid(which='major', alpha=unit)
+if args.plot :
+    plt.rc('axes', prop_cycle=(cycler.cycler('color', ['r', 'g', 'b', 'c', 'm', 'y', 'k'])))
+    fig = plt.figure(figsize=(16,4))
+    plt.axes().set_aspect('equal', 'datalim')
+    plt.grid(which='major', alpha=unit)
 
-for i in range(len(lin)/2) :
-    a = lin[2*i]
-    b = lin[2*i+1]
+    for i in range(len(lin)/2) :
+        a = lin[2*i]
+        b = lin[2*i+1]
 
-    xp = [ (1.-t)*a[0] + t*b[0] for t in np.arange(0.,1.01, 1./100.)]
-    yp = [ (1.-t)*a[1] + t*b[1] for t in np.arange(0.,1.01, 1./100.)]
+        xp = [ (1.-t)*a[0] + t*b[0] for t in np.arange(0.,1.01, 1./100.)]
+        yp = [ (1.-t)*a[1] + t*b[1] for t in np.arange(0.,1.01, 1./100.)]
 
-    plt.plot(xp, yp, 'o', markersize=.2)
+        plt.plot(xp, yp, 'o', markersize=.2)
+        
+    for i in range(len(quad)/3) :
+        a = quad[3*i]
+        b = quad[3*i+1]
+        c = quad[3*i+2]
+        
+        xp = [ pow(1.-t,2.)*a[0]+2.*(1.-t)*t*b[0]+t*t*c[0] for t in np.arange(0.,1.01, 1./100.)]
+        yp = [ pow(1.-t,2.)*a[1]+2.*(1.-t)*t*b[1]+t*t*c[1] for t in np.arange(0.,1.01, 1./100.)]
+        
+        plt.plot(xp, yp, 'o', markersize=.2)
+    plt.show()
     
-for i in range(len(quad)/3) :
-    a = quad[3*i]
-    b = quad[3*i+1]
-    c = quad[3*i+2]
+otext = "const vec2 lin["+str(len(lin))+"] = vec2["+str(len(lin))+"]("
+for li in lin :
+    otext += "vec2(" + "%.2e"%li[0]+","+"%.2e"%li[1]+"),"
+otext = otext[:-1]
+otext += "),\nquad["+str(len(quad))+"] = vec2["+str(len(quad))+"]("
+for qi in quad :
+    otext += "vec2(" + "%.2e"%qi[0]+","+"%.2e"%qi[1]+"),"
+otext = otext[:-1]
+otext += ");\nfor(int i=0; i<"+str(len(lin)/2)+";++i) d=min(d,dsg(lin[2*i], lin[2*i+1], uv));\nfor(int i=0; i<"+str(len(quad)/3)+"; ++i) d=min(d,dsp(quad[3*i], quad[3*i+1], quad[3*i+2], uv));\n"
+
+if args.outfile == None :
+    print otext
+else :
+    with open(args.outfile, "wt") as f:
+        f.write(otext)
+        f.close()
     
-    xp = [ pow(1.-t,2.)*a[0]+2.*(1.-t)*t*b[0]+t*t*c[0] for t in np.arange(0.,1.01, 1./100.)]
-    yp = [ pow(1.-t,2.)*a[1]+2.*(1.-t)*t*b[1]+t*t*c[1] for t in np.arange(0.,1.01, 1./100.)]
-    
-    plt.plot(xp, yp, 'o', markersize=.2)
-    
-#print lin, quad
-    
-plt.show()
