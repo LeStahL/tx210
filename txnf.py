@@ -378,7 +378,12 @@ for c in text :
         lin0 = [ [0.,1.], [0.,1.], [0.,3.], [0.,3.] ]
         quad0 = []
         rescale(lin0, quad0)
-        xpos += 2.
+        xpos += 1.
+    elif c == '-' :
+        lin0 = [ [0.,2.], [2.,2.] ]
+        quad0 = []
+        rescale(lin0, quad0)
+        xpos += 3.
 
     xpos += .05
 
