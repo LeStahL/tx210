@@ -369,6 +369,16 @@ for c in text :
         quad0 = []
         rescale(lin0, quad0)
         xpos += 2.
+    elif c == '/' :
+        lin0 = [ [0.,0.], [2.,4.] ]
+        quad0 = []
+        rescale(lin0, quad0)
+        xpos += 3.
+    elif c == ':' :
+        lin0 = [ [0.,1.], [0.,1.], [0.,3.], [0.,3.] ]
+        quad0 = []
+        rescale(lin0, quad0)
+        xpos += 2.
 
     xpos += .05
 
