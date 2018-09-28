@@ -16,6 +16,7 @@
 #
 # texture data format: 
 # 1 byte: number of contained glyphs n
+# TODO: add a separate glyph index here to speed up letter rendering
 # for each contained glyph:
 #     1 byte, char value: character index in ascii
 #     2 bytes, short value: glyph point data length m
