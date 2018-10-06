@@ -15,20 +15,20 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # texture data format: 
-# 1 byte: number of contained glyphs n
-# TODO: add a separate glyph index here to speed up letter rendering
+# 1 byte: number of contained glyphs nglyphs
 # for each contained glyph:
 #     1 byte, char value: character index in ascii
+#     2 bytes, short value: character offset in texture
+# for each contained glyph:
 #     2 bytes, short value: glyph point data length m
 #     2*m bytes, float16 values: glyph x data
 #     2*m bytes, float16 values: glyph y data
 #     m bytes, char values: outline tags
 #     1 byte, char value: number of contours o in glyph outline
 #     2*o bytes, short values: contour end points
-# 1 byte: 0
 #
 # this means, the length of the texture array is
-# (2 + n * (4 + 5*m + 2*o))/2
+# (2 + n * 3 + n * (4 + 5*m + 2*o))/2
 # 
 
 import argparse
@@ -36,9 +36,6 @@ import freetype
 import numpy as np
 import struct
 import sys
-
-# globals
-size = 1
 
 # CMD arg parser
 parser = argparse.ArgumentParser(description='Memory Texture Text Generation Tool by Team210.')
@@ -74,10 +71,9 @@ font = freetype.Face(args.fontfile)
 loadscale = 1000000
 font.set_char_size(loadscale)
 
-# Pack number of chars; max is full ascii
-texture = struct.pack('B', len(text))
-
 # Process text
+data = []
+lengths = []
 for char in text:
     print("Processing char: "+char)
     
@@ -95,23 +91,39 @@ for char in text:
     n = len(x)
     ncont = len(outline.contours)
 
-    texture += struct.pack('B', ord(char))
-    texture += struct.pack('H', n)
+    glyph_data = struct.pack('H', n)
     fmt = '{:d}e'.format(n)
     if n != 0:
-        texture += struct.pack(fmt, *x)
-        texture += struct.pack(fmt, *y)
-        texture += struct.pack('{:d}B'.format(n), *outline.tags)
-    texture += struct.pack('B', ncont)
+        glyph_data += struct.pack(fmt, *x)
+        glyph_data += struct.pack(fmt, *y)
+        glyph_data += struct.pack('{:d}B'.format(n), *outline.tags)
+    glyph_data += struct.pack('B', ncont)
     if ncont != 0:
-        texture += struct.pack('{:d}H'.format(ncont), *outline.contours)
+        glyph_data += struct.pack('{:d}H'.format(ncont), *outline.contours)
     
-    size += 4 + 5*n + 2*ncont
+    data += [ glyph_data ]
+    lengths += [ len(glyph_data) ]
 
-length = int(size/2)
-texs = str(int(np.ceil(np.sqrt(float(size)/4.))))
+# Pack number of chars; max is full ascii
+texture = struct.pack('B', len(text))
 
-print("packed font is "+str(size)+" bytes.")
+# Pack index
+offset = 1+3*len(text)
+print("Index:")
+for i in range(len(text)):
+    texture += struct.pack('B', ord(text[i]))
+    texture += struct.pack('H', offset)
+    offset += lengths[i]
+    print("> '"+text[i]+"' - "+str(lengths[i])+" bytes at "+str(offset)) 
+    
+# Pack data
+for i in range(len(text)):
+    texture += data[i]
+    
+length = int(len(texture)/2)
+texs = str(int(np.ceil(np.sqrt(float(len(texture))/4.))))
+
+print("packed font is "+str(len(texture))+" bytes.")
 print("Required texture size:" + texs)
 
 array = struct.unpack('{:d}h'.format(length), texture)
