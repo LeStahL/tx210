@@ -384,6 +384,11 @@ for c in text :
         quad0 = []
         rescale(lin0, quad0)
         xpos += 3.
+    elif c == '.' :
+        lin0 = [ [0.,0.], [0.,0.] ]
+        quad0 = []
+        rescale(lin0, quad0)
+        xpos += 1.
 
     xpos += .05
 

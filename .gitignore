@@ -3,3 +3,5 @@ build
 *.frag
 *.txt
 *.h
+*.kdev4
+*.kate-swp

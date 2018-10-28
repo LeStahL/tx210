@@ -13,23 +13,6 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-# texture data format: 
-# 1 byte: number of contained glyphs nglyphs
-# for each contained glyph:
-#     1 byte, char value: character index in ascii
-#     2 bytes, short value: character offset in texture
-# for each contained glyph:
-#     2 bytes, short value: glyph point data length m
-#     2*m bytes, float16 values: glyph x data
-#     2*m bytes, float16 values: glyph y data
-#     m bytes, char values: outline tags
-#     1 byte, char value: number of contours o in glyph outline
-#     2*o bytes, short values: contour end points
-#
-# this means, the length of the texture array is
-# (2 + n * 3 + n * (4 + 5*m + 2*o))/2
-# 
 
 import argparse
 import freetype
@@ -48,35 +31,47 @@ def close(str):
     print(str)
     exit()
 
+# Check args for consistency
 text = ""
 if rest != []:
-    text = rest[0]
+    text = list(set(rest[0]))
+    print("Unique character list is:", text)
+else:
+    text = [ chr(i) for i in range(32,127) ]
+    print("No text specified. Taking standard character list:", text)
 write_file = True
-
-# Check args for consistency
-if text == "":
-    print("No text specified. Packing standard chars:")
-    text = ''.join([ chr(i) for i in range(32, 127) ])
-    print("'"+text+"'")
 if args.fontfile == None:
     close("No font file specified. Doing nothing.")
 if args.outfile == None:
     print("No output file selected. Writing to stdout instead.")
-    write_file = False    
+    write_file = False  
 
 # Open font file
 font = freetype.Face(args.fontfile)
 
-# Load them big, rescale them to float
-loadscale = 1000000
+# Scale font to fit into unsigned short range
+loadscale = int(.6666*65535)
 font.set_char_size(loadscale)
 
-# Process text
-data = []
-lengths = []
+# Specify format
+endian = '>' # little endian
+datatype = 'H' # unsigned short
+fmt = endian + datatype
+
+# Arrays for the data
+x_all = [] # all glyph x values
+y_all = [] # all glyph y values
+tags_all = [] # all glyph control data
+contours_all = [] # all glyph contour specifications
+deltax_all = [] # Short range offset to actual glyph data 
+deltay_all = [] # Short range offset to actual glyph data
+offsets = [] # Keep track of the glyph block length for building the index
+offset = 1+2*len(text) # Offset in texture
+
+# Get glyph outlines and move them above the zero threshold to fit into unsigned short range
 for char in text:
-    print("Processing char: "+char)
-    
+    print("Processing char: " + char)
+
     # Load glyph outline
     font.load_char(char)
     glyph = font.glyph
@@ -84,51 +79,110 @@ for char in text:
     
     # Get outline points
     points = np.array(outline.points, dtype=[('x',float), ('y',float)]) 
-    x = list(points['x']/float(loadscale))
-    y = list(points['y']/float(loadscale))
+    x = [int(np.floor(xi)) for xi in list(points['x']) ]
+    y = [int(np.floor(xi)) for xi in list(points['y']) ]
     
-    # pack glyph data
-    n = len(x)
-    ncont = len(outline.contours)
-
-    glyph_data = struct.pack('H', n)
-    fmt = '{:d}e'.format(n)
-    if n != 0:
-        glyph_data += struct.pack(fmt, *x)
-        glyph_data += struct.pack(fmt, *y)
-        glyph_data += struct.pack('{:d}B'.format(n), *outline.tags)
-    glyph_data += struct.pack('B', ncont)
-    if ncont != 0:
-        glyph_data += struct.pack('{:d}H'.format(ncont), *outline.contours)
+    # Determination how far glyph is out of bounds
+    xlower = 65535.
+    xupper = -65535.
+    ylower = 65535.
+    yupper = -65535.
     
-    data += [ glyph_data ]
-    lengths += [ len(glyph_data) ]
+    if x != []:
+        xlower = min(xlower, min(x))
+        xupper = max(xupper, max(x))
+        print("xlower",xlower,"xupper",xupper)
+    else:
+        xlower = 0
+        xupper = 0
+    if y != []:
+        ylower = min(ylower, min(y))
+        yupper = max(yupper, max(y))
+        print("ylower",ylower,"yupper",yupper)
+    else:
+        ylower = 0
+        yupper = 0
+    
+    # Save the offsets.
+    deltax_all +=  [ int(xlower) ] 
+    deltay_all +=  [ int(ylower) ] 
+    
+    # Modify the value ranges.
+    x = [ xi - xlower for xi in x ]
+    y = [ yi - ylower for yi in y ]
+    x_all += [ x ]
+    y_all += [ y ]
+    
+    # Get remaining data (tags, contours)
+    tags_all += [ outline.tags ]
+    contours_all += [ outline.contours ]
+    
+    # fill in the section lengths
+    # that is number of x values, number of y values, number of tags, number of contours,
+    # offset onto (x,y) for short range
+    offsets += [offset]
+    offset += 8 + len(x) + len(y) + len(outline.tags) + len(outline.contours)
 
-# Pack number of chars; max is full ascii
-texture = struct.pack('B', len(text))
+print("Finished collecting necessary data.")
 
-# Pack index
-offset = 1+3*len(text)
-print("Index:")
+# Assemble texture.
+# Length of glyph index
+texture = struct.pack(fmt, len(text))
+# Glyph index
 for i in range(len(text)):
-    texture += struct.pack('B', ord(text[i]))
-    texture += struct.pack('H', offset)
-    offset += lengths[i]
-    print("> '"+text[i]+"' - "+str(lengths[i])+" bytes at "+str(offset)) 
-    
-# Pack data
+    # Pack ascii value of char
+    texture += struct.pack(fmt, ord(text[i]))
+    # Pack offset of glyph data in texture (in number of shorts)
+    texture += struct.pack(fmt, offsets[i])
+    print("Glyph '"+text[i]+"' is at index ",offsets[i]," (byte ",2*offsets[i],").")
+# Glyph data
 for i in range(len(text)):
-    texture += data[i]
-    
-length = int(len(texture)/2)
-texs = str(int(np.ceil(np.sqrt(float(len(texture))/4.))))
+    # Pack short range offset
+    texture += struct.pack(fmt, int(deltax_all[i]<0)) # Need to pack sign separately!
+    texture += struct.pack(fmt, abs(deltax_all[i]))
+    texture += struct.pack(fmt, int(deltay_all[i]<0)) # Need to pack sign separately!
+    texture += struct.pack(fmt, abs(deltay_all[i]))
+    # Pack number of x values
+    texture += struct.pack(fmt, len(x_all[i]))
+    # Pack x values
+    for xi in x_all[i]:
+        texture += struct.pack(fmt, xi)
+    # Pack number of y values
+    texture += struct.pack(fmt, len(y_all[i]))
+    # Pack y values
+    for yi in y_all[i]:
+        texture += struct.pack(fmt, yi)
+    # Pack number of tags
+    texture += struct.pack(fmt, len(tags_all[i]))
+    # Pack tags
+    for ti in tags_all[i]:
+        texture += struct.pack(fmt, ti)
+    # Pack number of contours
+    texture += struct.pack(fmt, len(contours_all[i]))
+    # Pack contours
+    for ci in contours_all[i]:
+        texture += struct.pack(fmt, ci)
 
-print("packed font is "+str(len(texture))+" bytes.")
-print("Required texture size:" + texs)
+print("Finished packing texture.")
 
-array = struct.unpack('{:d}h'.format(length), texture)
+# Write output to c header file or stdout
+# Fill last 4-byte-block with zero
+length = int(len(texture)) # in bytes
+while ((length % 4) != 0):
+    texture += bytes(10)
+    length += 1
+print("Packed font is "+str(length)+" bytes.")
+
+# Get necessary texture size from data
+texs = str(int(np.ceil(np.sqrt(float(length)/4.))))
+print("Required texture size: " + texs)
+
+# Output header file
+array = []
+for i in range(int(length/2)):
+    array += [ struct.unpack(fmt, texture[2*i:2*i+2]) ][0] 
 text = "//Generated by tx210 (c) 2018 NR4/Team210\n\n#ifndef FONT_H\n#define FONT_H\n\n"
-text += "const short font_texture[{:d}]".format(length)+" = {"
+text += "const unsigned short font_texture[{:d}]".format(length)+" = {"
 for val in array[:-1]:
     text += str(val) + ',' 
 text += str(array[-1]) + '};\n'
