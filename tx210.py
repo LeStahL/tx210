@@ -68,6 +68,8 @@ deltay_all = [] # Short range offset to actual glyph data
 offsets = [] # Keep track of the glyph block length for building the index
 offset = 1+2*len(text) # Offset in texture
 
+text = sorted(text)
+
 # Get glyph outlines and move them above the zero threshold to fit into unsigned short range
 for char in text:
     print("Processing char: " + char)
@@ -121,7 +123,9 @@ for char in text:
     # that is number of x values, number of y values, number of tags, number of contours,
     # offset onto (x,y) for short range
     offsets += [offset]
-    offset += 8 + len(x) + len(y) + len(outline.tags) + len(outline.contours)
+    offset += (8 + len(x) + len(y) + len(outline.tags) + len(outline.contours))
+    print("lens are:", len(x), len(y), len(outline.tags), len(outline.contours))
+    print("offset is:", offset)
 
 print("Finished collecting necessary data.")
 
@@ -134,7 +138,7 @@ for i in range(len(text)):
     texture += struct.pack(fmt, ord(text[i]))
     # Pack offset of glyph data in texture (in number of shorts)
     texture += struct.pack(fmt, offsets[i])
-    print("Glyph '"+text[i]+"' is at index ",offsets[i]," (byte ",2*offsets[i],").")
+    print("Glyph '"+text[i]+"' with ordinal "+str(ord(text[i]))+" is at index ",offsets[i]," (byte ",2*offsets[i],", pixel ",offsets[i]/2.,").", "vals: ", int(deltax_all[i]<0), abs(deltax_all[i]), int(deltay_all[i]<0), abs(deltay_all[i]), len(x_all[i]))
 # Glyph data
 for i in range(len(text)):
     # Pack short range offset
