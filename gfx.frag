@@ -151,6 +151,7 @@ float dglyph(vec2 x, int ascii)
     // Loop through the contours of the glyph. All of them are closed.
     for(float i=0.; i<ncont; i+=1.)
     {
+        // Get the contour start and end indices from the contour array.
         float istart, iend = rshort(coff + 1. + i);
         if(i-1.<0.) istart = 0.;
         else istart = rshort(coff + i);
@@ -164,7 +165,7 @@ float dglyph(vec2 x, int ascii)
         vec2 p0, p1, p2;
         for(float j=istart; j<iend; j+=1.)
         {
-            float tag = rshort(toff[j]);
+//             float tag = rshort(toff[j]);
         }
     }
     
