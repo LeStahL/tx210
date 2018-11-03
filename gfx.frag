@@ -25,6 +25,7 @@ uniform float iFontWidth;
 
 // Global constants
 const vec3 c = vec3(1.,0.,-1.);
+const float pi = acos(-1.);
 
 // Add objects to scene with proper antialiasing
 vec4 add(vec4 sdf, vec4 sda)
@@ -32,6 +33,55 @@ vec4 add(vec4 sdf, vec4 sda)
     return vec4(
         min(sdf.x, sda.x), 
         mix(sda.gba, sdf.gba, smoothstep(-1.5/iResolution.y, 1.5/iResolution.y, sda.x))
+    );
+}
+
+// Distance to line segment
+float lineseg(vec2 x, vec2 p1, vec2 p2)
+{
+    vec2 d = p2-p1;
+    return length(x-mix(p1, p2, clamp(dot(x-p1, d)/dot(d,d),0.,1.)));
+}
+
+// Distance to stroke for any object
+float stroke(float d, float w)
+{
+    return abs(d)-w;
+}
+
+//distance to quadratic bezier spline with parameter t
+float dist(vec2 p0,vec2 p1,vec2 p2,vec2 x,float t)
+{
+    t = clamp(t, 0., 1.);
+    return length(x-pow(1.-t,2.)*p0-2.*(1.-t)*t*p1-t*t*p2);
+}
+
+//minimum distance to quadratic bezier spline
+float spline2(vec2 p0, vec2 p1, vec2 p2, vec2 x)
+{
+    //coefficients for 0 = t^3 + a * t^2 + b * t + c
+    vec2 E = x-p0, F = p2-2.*p1+p0, G = p1-p0;
+    vec3 ai = vec3(3.*dot(G,F), 2.*dot(G,G)-dot(E,F), -dot(E,G))/dot(F,F);
+
+	//discriminant and helpers
+    float tau = ai.x/3., p = ai.y-tau*ai.x, q = - tau*(tau*tau+p)+ai.z, dis = q*q/4.+p*p*p/27.;
+    
+    //triple real root
+    if(dis > 0.) 
+    {
+        vec2 ki = -.5*q*c.xx+sqrt(dis)*c.xz, ui = sign(ki)*pow(abs(ki), c.xx/3.);
+        return dist(p0,p1,p2,x,ui.x+ui.y-tau);
+    }
+    
+    //three distinct real roots
+    float fac = sqrt(-4./3.*p), arg = acos(-.5*q*sqrt(-27./p/p/p))/3.;
+    vec3 t = c.zxz*fac*cos(arg*c.xxx+c*pi/3.)-tau;
+    return min(
+        dist(p0,p1,p2,x, t.x),
+        min(
+            dist(p0,p1,p2,x,t.y),
+            dist(p0,p1,p2,x,t.z)
+        )
     );
 }
 
@@ -53,23 +103,22 @@ float rshort(float off)
     //     1./iFontWidth.
     //   Half of it is in the center of the pixel.
     vec2 ind = (vec2(mod(off, iFontWidth), floor(off/iFontWidth))+.5)/iFontWidth;
-    // Repair end of line glitches
-//     if(ind.x >=1.)
-//         ind += vec2(-1., 1./iFontWidth);
     // Get 4 bytes of data from the texture
     vec4 block = texture(iFont, ind);
     // Select the appropriate word
     vec2 data = mix(block.rg, block.ba, hilo);
-    // Convert bytes to unsigned short.
-    return (dot(vec2(255., 65280.), data));
+    // Convert bytes to unsigned short. The lower bytes operate on 255,
+    // the higher bytes operate on 65280, which is the maximum range 
+    // of 65535 minus the lower 255.
+    return dot(vec2(255., 65280.), data);
 }
 
-// Compute distance to glyph from ascii value
+// Compute distance to glyph from ascii value out of the font texture.
+// This function parses glyph point and control data and computes the correct
+// Spline control points. Then it uses the signed distance function to
+// piecewise bezier splines to get a signed distance to the font glyph.
 float dglyph(vec2 x, int ascii)
 {
-//     if(rshort(10) == 637) return 1.;
-//     else return -1.;
-
     // Get glyph index length
     float nchars = rshort(0.);
     
@@ -91,17 +140,41 @@ float dglyph(vec2 x, int ascii)
     vec2 dx = mix(c.xx,c.zz,vec2(rshort(off), rshort(off+2.)))*vec2(rshort(off+1.), rshort(off+3.));
     
     // Read the glyph splines from the texture
-    float npts = rshort(off+4.);
-    float xoff = off+5., 
+    float npts = rshort(off+4.),
+        xoff = off+5., 
         yoff = off+6.+npts,
-//         coff = off 
-//         toff = off+7.+2.*npts,
+        toff = off+7.+2.*npts, 
+        coff = off+8.+3.*npts,
+        ncont = rshort(coff),
         d = 1.;
+    
+    // Loop through the contours of the glyph. All of them are closed.
+    for(float i=0.; i<ncont; i+=1.)
+    {
+        float istart, iend = rshort(coff + 1. + i);
+        if(i-1.<0.) istart = 0.;
+        else istart = rshort(coff + i);
+        
+        // Process the contour. The p%d variables are the control points;
+        // p0 is always "on-curve". p1 can be "on-curve"; then a linear
+        // segment is added. if p1 is "off-curve", p3 is "on-curve" and 
+        // a quadratic spline segment is added. As fonts have a slightly
+        // more compact way of saving the control points, the correct 
+        // starting and ending points always have to be calculated.
+        vec2 p0, p1, p2;
+        for(float j=istart; j<iend; j+=1.)
+        {
+            float tag = rshort(toff[j]);
+        }
+    }
+    
+    // Debug output of the spline control points
     for(float i=0.; i<npts; i+=1.)
     {
         vec2 xa = ( vec2(rshort(xoff+i), rshort(yoff+i)) + dx )/65536.*.5;
         d = min(d, length(x-xa)-.005);
     }
+    
     return d;
 }
 
@@ -115,8 +188,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 //     fragColor = vec4(col, 1.);
 
     // Time varying pixel color
-    vec3 col = 0.5 + 0.5*cos(uv.xyx+vec3(0,2,4));
-    col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,dglyph(uv, 105));
+    vec3 col = 0.5 + 0.5*cos(uv.xyx-iTime+vec3(0,2,4));
+    col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,dglyph(uv, 64));
     fragColor = vec4(col,1.0);
 
     // Output to screen
