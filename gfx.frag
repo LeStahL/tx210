@@ -145,35 +145,72 @@ float dglyph(vec2 x, int ascii)
         yoff = off+6.+npts,
         toff = off+7.+2.*npts, 
         coff = off+8.+3.*npts,
-        ncont = rshort(coff),
+        ncont = rshort(coff-1.),
         d = 1.;
     
     // Loop through the contours of the glyph. All of them are closed.
     for(float i=0.; i<ncont; i+=1.)
     {
         // Get the contour start and end indices from the contour array.
-        float istart, iend = rshort(coff + 1. + i);
-        if(i-1.<0.) istart = 0.;
-        else istart = rshort(coff + i);
+        float istart = 0., 
+            iend = rshort(coff+i);
+        if(i>0.)
+            istart = rshort(coff+i-1.) + 1.;
         
-        // Process the contour. The p%d variables are the control points;
-        // p0 is always "on-curve". p1 can be "on-curve"; then a linear
-        // segment is added. if p1 is "off-curve", p3 is "on-curve" and 
-        // a quadratic spline segment is added. As fonts have a slightly
-        // more compact way of saving the control points, the correct 
-        // starting and ending points always have to be calculated.
-        vec2 p0, p1, p2;
-        for(float j=istart; j<iend; j+=1.)
+        // Loop through the segments.
+        vec2 stack[3];
+        float tstack[3];
+        int stacksize = 0;
+        for(float j = istart; j < iend; j += 1.)
         {
-//             float tag = rshort(toff[j]);
+            tstack[stacksize] = rshort(toff + j);
+            stack[stacksize] = (vec2(rshort(xoff+j), rshort(yoff+j)) + dx)/65536.*.5;
+            ++stacksize;
+            
+            // Check if line segment is finished
+            if(stacksize == 2)
+            {
+                if(tstack[0]*tstack[1] == 1)
+                {
+                    d = min(d, stroke(lineseg(x, stack[0], stack[1]), .001));
+                    --j;
+                    stacksize = 0;
+                }
+            }
+            else 
+            if(stacksize == 3)
+            {
+                if(tstack[0]*tstack[2] == 1.)
+                {
+                    d = min(d, stroke(spline2(stack[0], stack[1], stack[2], x), .001));
+                    --j;
+                    stacksize = 0;
+                }
+                else
+                {
+                    vec2 p = mix(stack[1], stack[2], .5);
+                    d = min(d, stroke(spline2(stack[0], stack[1], p, x), .001));
+                    stack[0] = p;
+                    tstack[0] = 1.;
+                    --j;
+                    stacksize = 1;
+                }
+            }
         }
+        tstack[stacksize] = rshort(toff + istart);
+        stack[stacksize] = (vec2(rshort(xoff+istart), rshort(yoff+istart)) + dx)/65536.*.5;
+        ++stacksize;
+        if(stacksize == 2)
+            d = min(d, stroke(lineseg(x, stack[0], stack[1]), .001));
+        else if(stacksize == 3)
+            d = min(d, stroke(spline2(stack[0], stack[1], stack[2], x), .001));
     }
     
     // Debug output of the spline control points
     for(float i=0.; i<npts; i+=1.)
     {
         vec2 xa = ( vec2(rshort(xoff+i), rshort(yoff+i)) + dx )/65536.*.5;
-        d = min(d, length(x-xa)-.005);
+        d = min(d, length(x-xa)-.002);
     }
     
     return d;
@@ -183,14 +220,14 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     // Normalized pixel coordinates (from 0 to 1)
     vec2 uv = fragCoord/iResolution.yy-.5;
-                                                                                                                                                                                                                                                                
+    int char = 32+int(floor(mod(4.*iTime,126.-32.)));                                                                                                                                                                                                                                                            
 //     vec4 s = vec4(dglyph(uv, 65),c.yxy);
 //     vec3 col = s.gba * smoothstep(1.5/iResolution.y, -1.5/iResolution.y, s.x);
 //     fragColor = vec4(col, 1.);
 
     // Time varying pixel color
     vec3 col = 0.5 + 0.5*cos(uv.xyx-iTime+vec3(0,2,4));
-    col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,dglyph(uv, 64));
+    col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,dglyph(uv, char));
     fragColor = vec4(col,1.0);
 
     // Output to screen

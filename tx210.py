@@ -124,7 +124,8 @@ for char in text:
     # offset onto (x,y) for short range
     offsets += [offset]
     offset += (8 + len(x) + len(y) + len(outline.tags) + len(outline.contours))
-    print(outline.contours) 
+    #print(outline.contours, len(outline.contours), len(x)) 
+    print(outline.tags)
 
 print("Finished collecting necessary data.")
 
