@@ -19,6 +19,7 @@ import freetype
 import numpy as np
 import struct
 import sys
+import random
 
 # CMD arg parser
 parser = argparse.ArgumentParser(description='Memory Texture Text Generation Tool by Team210.')
@@ -50,7 +51,7 @@ if args.outfile == None:
 font = freetype.Face(args.fontfile)
 
 # Scale font to fit into unsigned short range
-loadscale = int(.6666*65535)
+loadscale = int(.3*65535.)
 font.set_char_size(loadscale)
 
 # Specify format
@@ -110,14 +111,42 @@ for char in text:
     deltay_all +=  [ int(ylower) ] 
     
     # Modify the value ranges.
+    # + random.randint(1,101)
     x = [ xi - xlower for xi in x ]
     y = [ yi - ylower for yi in y ]
+    
+    # Get remaining data (tags, contours)
+    tags = outline.tags
+    for i in range(len(tags)):
+        if tags[i] != 0:
+            tags[i] = 1
+    
+    # Fix the tag sequence; we do not want it to start with off-curve points.
+    if outline.contours != []:
+        for i in range(len(outline.contours)):
+            istart = 0
+            iend = outline.contours[i]
+            if i>0:
+                istart = outline.contours[i-1] + 1;
+            
+            while tags[istart] != 1:
+                buf = tags[iend]
+                xbuf = x[iend]
+                ybuf = y[iend]
+                for j in range(iend,istart+1,-1):
+                    tags[j] = tags[j-1]
+                    x[j] = x[j-1]
+                    y[j] = y[j-1]
+                tags[istart] = buf
+                x[istart] = xbuf
+                y[istart] = ybuf
+                print('rotating.')
+        
+    tags_all += [ tags ]
+    contours_all += [ outline.contours ]
     x_all += [ x ]
     y_all += [ y ]
     
-    # Get remaining data (tags, contours)
-    tags_all += [ outline.tags ]
-    contours_all += [ outline.contours ]
     
     # fill in the section lengths
     # that is number of x values, number of y values, number of tags, number of contours,

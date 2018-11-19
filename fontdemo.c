@@ -121,7 +121,8 @@ void debug(int shader_handle)
 // TODO: remove above
 
 //Shader globals
-int w = 1366, h = 768,
+// int w = 1366, h = 768,
+int w = 1920, h = 1080,
     gfx_handle, gfx_program, 
     time_location, resolution_location, 
     font_texture_location, font_width_location;
