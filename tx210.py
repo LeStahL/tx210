@@ -133,7 +133,7 @@ for char in text:
                 buf = tags[iend]
                 xbuf = x[iend]
                 ybuf = y[iend]
-                for j in range(iend,istart+1,-1):
+                for j in range(iend,istart,-1):
                     tags[j] = tags[j-1]
                     x[j] = x[j-1]
                     y[j] = y[j-1]

@@ -73,7 +73,8 @@ void *malloc( unsigned int size )
 #include <stdio.h>
 
 // fonts
-#include "Pacifico-Regular.h"
+// #include "Pacifico-Regular.h"
+#include "Kavoon-Regular.h"
 
 // OpenGL extensions
 PFNGLGETPROGRAMIVPROC glGetProgramiv;

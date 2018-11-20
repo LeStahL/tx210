@@ -16,7 +16,8 @@
 
 cmake_minimum_required(VERSION 2.8)
 
-project(mic-visuals)
+project(fontdemo)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if(WIN32)
 #     include_directories("C:\\Users\\NR4\\Downloads\\fftw-3.3.8\\api")
