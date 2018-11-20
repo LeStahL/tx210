@@ -51,7 +51,7 @@ if args.outfile == None:
 font = freetype.Face(args.fontfile)
 
 # Scale font to fit into unsigned short range
-loadscale = int(.3*65535.)
+loadscale = int(.1*65535.)
 font.set_char_size(loadscale)
 
 # Specify format

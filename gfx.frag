@@ -92,10 +92,13 @@ float spline2(vec2 p0, vec2 p1, vec2 p2, vec2 x)
 // add sign to polygon distance
 float intersector(vec2 p0, vec2 p1, vec2 x)
 {
+    if(step(p0.y,x.y)*step(x.y,p1.y) == 0)return 0;
+
     vec2 k = x-p0, d = p1-p0;
+    if(d.y == 0.) return 0.;
+    
     float alpha,beta;
     
-    //if(d.y == 0.) return 0.;
     beta = k.y/d.y;
     alpha = d.x*beta-k.x;
     
@@ -105,12 +108,17 @@ float intersector(vec2 p0, vec2 p1, vec2 x)
 // add sign to polyspline distance
 float intersector(vec2 p0, vec2 p1, vec2 p2, vec2 x)
 {
+//     float ma = max(p0.y,max(p1.y, p2.y)), mi = min(p0.y, min(p1.y, p2.y));
+//     if(step(mi,x.y)*step(x.y,ma) == 0)return 0;
+    
     // Compute coefficients for quadratic equation
     float a = p2.y-2.*p1.y+p0.y, b = 2.*p1.y-2.*p0.y, C = p0.y-x.y;
     
 //     Degenerate case where a = 0
-    if(p0.y == p1.y || p1.y == p2.y)
-        return intersector(p0, p2, x);
+//     if(p0.y == p1.y || p1.y == p2.y)
+//         return 0.;
+//     if(a == 0.)
+//         return intersector(p0, p2, x);
     
     // Discriminant
     float dis = b*b-4.*a*C;
@@ -157,7 +165,7 @@ float rshort(float off)
     // Convert bytes to unsigned short. The lower bytes operate on 255,
     // the higher bytes operate on 65280, which is the maximum range 
     // of 65535 minus the lower 255.
-    return dot(vec2(255., 65280.), data);
+    return round(dot(vec2(255., 65280.), data));
 }
 
 // Compute distance to glyph from ascii value out of the font texture.
@@ -266,11 +274,11 @@ float dglyph(vec2 x, int ascii)
     }
     
     // Debug output of the spline control points
-    for(float i=0.; i<npts; i+=1.)
-    {
-        vec2 xa = ( vec2(rshort(xoff+i), rshort(yoff+i)) + dx )/65536.*size;
-        d = min(d, length(x-xa)-.002);
-    }
+//     for(float i=0.; i<npts; i+=1.)
+//     {
+//         vec2 xa = ( vec2(rshort(xoff+i), rshort(yoff+i)) + dx )/65536.*size;
+//         d = min(d, length(x-xa)-.002);
+//     }
     
 //     return d;
     return mix(d, -d, mod(n, 2.));
@@ -286,15 +294,21 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     // Normalized pixel coordinates (from 0 to 1)
     vec2 uv = fragCoord/iResolution.yy-.5;
-    int char = 32+int(floor(mod(iTime,126.-32.)));                                                                                                                                                                                                                                                            
+    
+    // Tiles
+    float a = .1;
+    vec2 x = mod(uv, a)-.5*a, y = (uv+.5-x)/a;
+    int char = 32 + int(mod(floor((y.y/a+y.x)), 126.-32.));
+    //int char = 32+int(floor(mod(iTime,126.-32.)));                                                                                                                                                                                                                                                            
 //     vec4 s = vec4(dglyph(uv, 65),c.yxy);
 //     vec3 col = s.gba * smoothstep(1.5/iResolution.y, -1.5/iResolution.y, s.x);
 //     fragColor = vec4(col, 1.);
 
     // Time varying pixel color
     vec3 col = 0.5 + 0.5*cos(uv.xyx-iTime+vec3(0,2,4));
-    size = .6;
-    col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,dglyph(uv, char)); //103
+    size = .54;
+//     col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,dglyph(x, char)); //103
+    col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,stroke(dglyph(x, char), 1.e-3)); //103
     fragColor = vec4(col,1.0);
 
     // Output to screen
