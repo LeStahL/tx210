@@ -299,32 +299,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     float a = .1;
     vec2 x = mod(uv, a)-.5*a, y = (uv+.5-x)/a;
     int char = 32 + int(mod(floor((y.y/a+y.x)), 126.-32.));
-    //int char = 32+int(floor(mod(iTime,126.-32.)));                                                                                                                                                                                                                                                            
-//     vec4 s = vec4(dglyph(uv, 65),c.yxy);
-//     vec3 col = s.gba * smoothstep(1.5/iResolution.y, -1.5/iResolution.y, s.x);
-//     fragColor = vec4(col, 1.);
 
     // Time varying pixel color
-    vec3 col = 0.5 + 0.5*cos(uv.xyx-iTime+vec3(0,2,4));
+    vec3 col = 0.5 + 0.5*cos(iTime+uv.xyx+vec3(0,2,4));
     size = .54;
 //     col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,dglyph(x, char)); //103
     col *= smoothstep(-1.5/iResolution.y,1.5/iResolution.y,stroke(dglyph(x, char), 1.e-3)); //103
     fragColor = vec4(col,1.0);
-
-    // Output to screen
-/*
-     #define N 556
-
-    for(float ind = 0.; ind < N; ind += 1.)
-    {
-    //float ind = 2.;
-        if(uv.x+.5 > 1./float(N)*ind && uv.x+.5 < 1./float(N)*(ind+1.))
-            col *= mix(.6,1.1, mod(ind,2.))*step(uv.y+.5-rshort(ind)/2./data[int(ind)], 0.);
-    }
-    fragColor = vec4(col,1.0);// * dot(texture(iFont, uv).ba, vec2(256., 65536.)); */
-    
-//     if(rshort(0.) == 8.)
-//         fragColor = c.yxyy;
 }
 
 void main()
